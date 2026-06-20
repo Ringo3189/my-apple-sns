@@ -3,55 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>リンゴ・タイムライン</title>
+    <title>リンゴ・タイムライン Premium</title>
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #eef2f3; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 600px; margin: 0 auto; }
-        h1 { text-align: center; color: #ff4757; }
+        h1 { text-align: center; color: #ff4757; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
         .post-form { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
         input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         textarea { height: 80px; resize: none; }
-        button { width: 100%; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        button:hover { background: #e04050; }
+        button { width: 100%; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #e04050; transform: scale(1.01); }
         .timeline { background: white; border-radius: 12px; padding: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .post { padding: 15px; border-bottom: 1px solid #eee; }
+        .post { padding: 15px; border-bottom: 1px solid #eee; animation: fadeIn 0.5s ease; }
         .post:last-child { border-bottom: none; }
-        .post-name { font-weight: bold; color: #555; font-size: 14px; margin-bottom: 5px; }
+        .post-name { font-weight: bold; color: #555; font-size: 14px; margin-bottom: 5px; display: flex; justify-content: space-between; }
+        .post-time { font-weight: normal; color: #aaa; font-size: 12px; }
         .post-message { font-size: 16px; word-break: break-all; }
+        
+        /* ふわっと表示されるアニメーション */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🍎 リンゴ・タイムライン</h1>
+        <h1>🍎 リンゴ・タイムライン Pro</h1>
         
         <div class="post-form">
-            <form action="/api/posts" method="POST">
-                <input type="text" name="name" placeholder="ニックネーム" required>
-                <textarea name="message" placeholder="いまどうしてる？" required></textarea>
+            <!-- ページが切り替わらないように、JavaScriptで送信するように変更 -->
+            <form id="snsForm">
+                <input type="text" id="nameInput" placeholder="ニックネーム" required>
+                <textarea id="messageInput" placeholder="いまどうしてる？（自動で同期されるよ！）" required></textarea>
                 <button type="submit">投稿する</button>
             </form>
         </div>
 
-        <div class="timeline" id="timeline">
-            </div>
+        <div class="timeline" id="timeline"></div>
     </div>
 
     <script>
-        // サーバーから投稿一覧を取ってきて画面に表示する
+        // サーバーから投稿を取得して画面を書き換える
         async function loadPosts() {
-            const response = await fetch('/api/posts');
-            const posts = await response.json();
-            const timeline = document.getElementById('timeline');
-            
-            timeline.innerHTML = posts.map(post => `
-                <div class="post">
-                    <div class="post-name">👤 ${escapeHTML(post.name)}</div>
-                    <div class="post-message">${escapeHTML(post.message)}</div>
-                </div>
-            `).join('');
+            try {
+                const response = await fetch('/api/posts');
+                const posts = await response.json();
+                const timeline = document.getElementById('timeline');
+                
+                timeline.innerHTML = posts.map(post => `
+                    <div class="post">
+                        <div class="post-name">
+                            <span>👤 ${escapeHTML(post.name)}</span>
+                            <span class="post-time">NOW</span>
+                        </div>
+                        <div class="post-message">${escapeHTML(post.message)}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error("読み込みエラー", e);
+            }
         }
 
-        // 安全対策（文字化けや悪意ある書き込みの防止）
+        // フォームが送信されたときの処理
+        document.getElementById('snsForm').addEventListener('submit', async (e) => {
+            e.preventDefault(); // 画面がリロードされるのを防ぐ！
+            
+            const name = document.getElementById('nameInput').value;
+            const message = document.getElementById('messageInput').value;
+            
+            // サーバーにデータを送る
+            await fetch('/api/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, message })
+            });
+            
+            document.getElementById('messageInput').value = ''; // 入力欄を空にする
+            loadPosts(); // すぐに画面を更新
+        });
+
+        // ⭐ 3秒ごとに自動で新しい投稿がないかチェックする（ポーリング技術）
+        setInterval(loadPosts, 3000);
+
         function escapeHTML(str) {
             return str.replace(/[&<>"']/g, match => {
                 const pairs = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -59,7 +93,7 @@
             });
         }
 
-        // ページが開いた時に投稿を読み込む
+        // 最初の読み込み
         loadPosts();
     </script>
 </body>
